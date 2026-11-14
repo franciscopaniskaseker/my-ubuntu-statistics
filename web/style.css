@@ -769,7 +769,8 @@ dialog#settings::backdrop { background: var(--backdrop); }
   white-space: nowrap;
 }
 .dlg-tabs [role="tab"][aria-selected="true"] { color: var(--ink); border-bottom-color: var(--s1); }
-.dlg-body { flex: 1; overflow: auto; padding: 16px 20px 20px; }
+.dlg-head, .dlg-tabs, .dlg-foot { flex-shrink: 0; }
+.dlg-body { flex: 1; min-height: 0; overflow: auto; padding: 16px 20px 20px; }
 .dlg-foot {
   display: flex;
   justify-content: space-between;
@@ -832,6 +833,13 @@ input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--s1); }
   font-size: 0.8125rem;
   white-space: nowrap;
 }
+.hw-list { margin: 0 0 6px; padding: 0; list-style: none; }
+.hw-item { padding: 7px 0; border-bottom: 1px solid var(--hair); }
+.hw-item:last-child { border-bottom: 0; }
+.hw-item .help { margin: 2px 0 0; }
+.hw-name { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; font-weight: 500; }
+.hw-item.absent .hw-name { color: var(--ink-2); }
+.hw-seen { font-size: 0.75rem; }
 .chip::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--muted); }
 .chip[data-state="ok"]::before { background: var(--good); }
 .chip[data-state="degraded"]::before, .chip[data-state="stalled"]::before { background: var(--warn); }

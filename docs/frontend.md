@@ -166,8 +166,17 @@ its PID is reused, it stops refreshing and keeps the last values, dimmed.
 
 ## Settings overlay
 
-The gear button opens a dialog with five tabs: Statistics (per-collector
-on/off and interval, ignored network interfaces), History, Backups, Display
-and Status. Every control saves immediately through `PUT /api/settings`. All
-open pages receive the change through the `settings` event. See
-[settings.md](settings.md).
+The gear button opens a dialog with six tabs: Statistics (per-collector
+on/off and interval, ignored network interfaces), History, Backups, Display,
+Hardware and Status. Every control saves immediately through
+`PUT /api/settings`. All open pages receive the change through the
+`settings` event. See [settings.md](settings.md).
+
+The Hardware tab lists the stored inventory grouped by kind (computer,
+processor, memory, graphics, storage, network adapters, battery and power
+supplies, sensor chips). Each entry shows its name, static facts and first
+seen date; entries not detected now carry a "not detected since" chip. The
+**Rescan hardware** button starts a rescan; the tab redraws from `hardware`
+events while it runs. When a rescan finishes, every open page updates its
+header and rebuilds the dashboard, because device names may have changed.
+See [hardware.md](hardware.md).

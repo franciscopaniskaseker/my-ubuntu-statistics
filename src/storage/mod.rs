@@ -24,6 +24,8 @@ use writer::{Msg, Queue, WriterState};
 pub struct Opened {
     conn: Connection,
     pub settings_json: Option<String>,
+    /// Stored hardware inventory (`meta` row `hardware`).
+    pub hardware_json: Option<String>,
     pub notes: Vec<String>,
 }
 
@@ -57,9 +59,11 @@ pub fn open(path: &Path, backup_dir: &Path) -> Result<Opened> {
     }
     schema::migrate(&mut conn)?;
     let settings_json = writer::load_settings(&conn);
+    let hardware_json = schema::meta_get(&conn, "hardware").ok().flatten();
     Ok(Opened {
         conn,
         settings_json,
+        hardware_json,
         notes,
     })
 }
@@ -98,6 +102,14 @@ impl Storage {
         if let Ok(j) = serde_json::to_string(s) {
             self.queue.push(Msg::Settings(j));
         }
+    }
+
+    /// Store one `meta` row (small documents such as the hardware inventory).
+    pub fn save_meta(&self, key: &str, value: String) {
+        self.queue.push(Msg::Meta {
+            key: key.to_string(),
+            value,
+        });
     }
 
     /// Wait until queued work has been written (bounded wait).

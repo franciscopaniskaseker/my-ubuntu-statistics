@@ -30,6 +30,7 @@ memory, writes averaged history to SQLite and serves the web page and API.
 | `src/backup.rs` | Daily compressed backups, rotation and restore. |
 | `src/health.rs` | systemd readiness, status text and watchdog. |
 | `src/http/` | Routes, embedded assets, Host/Origin guard. |
+| `src/inventory.rs` | Hardware inventory: detection, storage in the database, periodic updates and rescans. |
 | `src/procinfo.rs` | Details of one process, read from `/proc/<pid>` on request (`/api/process`). |
 | `src/hostinfo.rs` | Static host facts for the page header. |
 | `src/util/` | sysfs/procfs readers, counters, parsing, time, locking, rate-limited logging. |
@@ -38,8 +39,8 @@ memory, writes averaged history to SQLite and serves the web page and API.
 ## Runtime layout
 
 - A tokio runtime with two worker threads runs the collector loops, the
-  HTTP server, the persistence ticker, the derived-series task, the backup
-  scheduler and the heartbeat.
+  HTTP server, the persistence ticker, the derived-series task, the
+  hardware inventory task, the backup scheduler and the heartbeat.
 - Collector ticks run on the blocking pool (capped at 32 threads) so slow
   sysfs reads never block the runtime.
 - The database writer is a dedicated thread that owns the only read-write
@@ -62,6 +63,10 @@ memory, writes averaged history to SQLite and serves the web page and API.
 5. The page reads `/api/meta` (catalog), `/api/snapshot` (latest values) and
    `/api/live` (ring backfill), then follows `/api/stream`. History ranges use
    `/api/history`.
+6. Every minute the inventory task records the physical devices in the
+   hub catalog, plus the host facts, in the database (`meta` row
+   `hardware`). A rescan rebuilds the device collectors through a watch
+   channel and replaces the stored list.
 
 ## Files on disk
 

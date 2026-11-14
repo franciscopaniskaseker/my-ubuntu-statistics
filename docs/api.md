@@ -123,6 +123,7 @@ Server-Sent Events. Limited to 32 concurrent clients (503 beyond that).
 | `extra` | `{"c": collector, "data": {...}}`, free-form data of other collectors (GPU processes). |
 | `catalog` | `{"version"}` when series appear or disappear; refetch `/api/meta`. |
 | `settings` | The full settings document after a change. |
+| `hardware` | The hardware inventory (same body as `GET /api/hardware`) when it changes; `reason` is `detected`, `updated`, `scanning` or `rescanned`. |
 | `status` | One collector status when its state or reason changes. |
 | `resync` | The client fell behind; refetch `/api/snapshot`. |
 
@@ -144,8 +145,8 @@ Status 400 is returned for invalid JSON or wrong types.
 ### `GET /api/status`
 - Overall state.
 - Per-collector status: `name`, `state`, `source`, `reason`, `hint`,
-  `interval_ms`, `series`, `last_ok_ms`, `last_duration_ms`, `errors`,
-  `restarts`.
+  `interval_ms`, `series`, `last_ok_ms`, `last_duration_ms`, `ticks`
+  (completed ticks since start), `errors`, `restarts`.
 - Storage: path, sizes, rows written, failed or dropped batches, last error.
 - `memory_only` and `storage_error`.
 - Backup summary.
@@ -157,3 +158,17 @@ Status 400 is returned for invalid JSON or wrong types.
 ### `POST /api/backups`
 Makes a backup now and applies rotation. Returns the new backup or an error
 (409 in memory-only mode).
+
+## Hardware
+
+### `GET /api/hardware`
+The stored hardware inventory (see [hardware.md](hardware.md)):
+`{"reason", "format", "scanned_ms", "scanning", "last_rescan_ms", "host",
+"items": [{"key", "kind", "name", "details", "first_seen", "last_seen",
+"present"}]}`. `host` holds the header facts, as in `/api/meta`.
+
+### `POST /api/hardware/rescan`
+Starts a rescan in the background: 202 with `{"started": true,
+"expected_ms"}` (the longest it waits for the collectors). The result
+arrives as a `hardware` event with `reason: "rescanned"`. 409 while a rescan
+runs, 429 within 10 s of the previous one.

@@ -24,7 +24,7 @@ database server and the version does not depend on the distribution.
 | `samples_1m` | `series_id`, `ts`, `avg`, `min`, `max` | 1-minute rollup. |
 | `samples_1h` | `series_id`, `ts`, `avg`, `min`, `max` | 1-hour rollup. |
 | `settings` | `key`, `value` | Runtime settings document (`key = 'settings'`). |
-| `meta` | `key`, `value` | Rollup watermarks (`rollup_1m_until`, `rollup_1h_until`). |
+| `meta` | `key`, `value` | Rollup watermarks (`rollup_1m_until`, `rollup_1h_until`) and the hardware inventory (`hardware`, a JSON document; see [hardware.md](hardware.md)). |
 
 Timestamps are Unix seconds (UTC). The raw tier labels each bucket with its
 start time. Inserts are upserts, so a wall-clock jump cannot cause errors.

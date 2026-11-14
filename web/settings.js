@@ -1,5 +1,6 @@
 // Settings overlay: collector intervals, history retention, backups,
-// display preferences and a status view. Every change is saved right away.
+// display preferences, the hardware inventory (with rescan) and a status
+// view. Every change is saved right away.
 
 import { el } from './cards.js';
 import { text, clock } from './format.js';
@@ -9,6 +10,37 @@ const RESOLUTIONS = [1, 2, 5, 10, 15, 30, 60, 120, 300];
 
 function secLabel(ms) {
   return ms < 1000 ? `${ms} ms` : `${ms / 1000} s`;
+}
+
+const HW_GROUPS = [
+  ['machine', 'Computer'],
+  ['cpu', 'Processor'],
+  ['memory', 'Memory'],
+  ['gpu', 'Graphics'],
+  ['disk', 'Storage'],
+  ['network', 'Network adapters'],
+  ['power', 'Battery and power supplies'],
+  ['sensor', 'Sensor chips'],
+];
+
+const FACT_LABELS = {
+  cuda: 'CUDA',
+  cuda_cores: 'CUDA cores',
+  vbios: 'VBIOS',
+  pcie_max: 'PCIe',
+  memory_bus: 'memory bus',
+  max_clock: 'max clock',
+  compute_capability: 'compute capability',
+  kind: 'type',
+};
+
+// Error text of a failed API call (JSON `{"error": ...}` bodies included).
+function errText(e) {
+  try {
+    return JSON.parse(e.message).error || e.message;
+  } catch {
+    return e.message;
+  }
 }
 
 function patchFor(path, value) {
@@ -70,6 +102,7 @@ export class SettingsPanel {
       history: () => this.renderHistory(),
       backups: () => this.renderBackups(),
       display: () => this.renderDisplay(),
+      hardware: () => this.renderHardware(),
       status: () => this.renderStatus(),
     }[tab];
     this.body.replaceChildren();
@@ -78,6 +111,15 @@ export class SettingsPanel {
 
   refreshIfOpen() {
     if (this.d.open && this.tab === 'status') this.show('status');
+  }
+
+  // A `hardware` event: redraw the Hardware tab when it is visible.
+  onHardware(data) {
+    if (!this.d.open || this.tab !== 'hardware') return;
+    const scroll = this.body.scrollTop;
+    this.body.replaceChildren();
+    this.renderHardware(data);
+    this.body.scrollTop = scroll;
   }
 
   flash(msg, bad) {
@@ -255,6 +297,60 @@ export class SettingsPanel {
       this.field('Temperature', this.radios('Temperature unit', [['C', '°C'], ['F', '°F']], d.temp_unit,
         (v) => this.save('display.temp_unit', v))),
     );
+  }
+
+  async renderHardware(given) {
+    let data = given;
+    if (!data) {
+      try {
+        data = await this.api.hardware();
+      } catch (e) {
+        this.body.append(el('p', { class: 'warn-box' }, `Cannot load the hardware list: ${errText(e)}`));
+        return;
+      }
+    }
+    this.body.append(el('p', { class: 'help' },
+      'Hardware found on this computer, stored in the database. New devices are added automatically. A rescan looks for all devices and their names again, for example after installing a driver, loading a kernel module or replacing a part.'));
+    const btn = el('button', { type: 'button', class: 'btn' }, 'Rescan hardware');
+    const msg = el('span', { class: 'help', 'aria-live': 'polite' });
+    if (data.scanning) {
+      btn.disabled = true;
+      msg.textContent = 'Rescanning…';
+    } else if (data.reason === 'rescanned') {
+      msg.textContent = 'Rescan finished.';
+    } else if (data.scanned_ms) {
+      msg.textContent = `Last full scan: ${clock(data.scanned_ms / 1000, true)}`;
+    }
+    btn.addEventListener('click', async () => {
+      btn.disabled = true;
+      msg.textContent = 'Starting the rescan…';
+      try {
+        const r = await this.api.rescan();
+        msg.textContent = `Rescanning, up to ${Math.ceil(r.expected_ms / 1000)} s…`;
+      } catch (e) {
+        msg.textContent = `Rescan not started: ${errText(e)}`;
+        btn.disabled = false;
+      }
+    });
+    this.body.append(el('div', { class: 'field inline' }, btn, msg));
+    const items = data.items || [];
+    if (!items.length) {
+      this.body.append(el('p', { class: 'muted' }, 'Nothing stored yet. The list is filled about 15 seconds after the service starts.'));
+      return;
+    }
+    for (const [kind, title] of HW_GROUPS) {
+      const list = items.filter((i) => i.kind === kind);
+      if (!list.length) continue;
+      this.body.append(el('h3', { class: 'sub-head' }, title));
+      this.body.append(el('ul', { class: 'hw-list' }, list.map((i) => {
+        const facts = Object.entries(i.details || {}).map(([k, v]) => `${FACT_LABELS[k] || k.replace(/_/g, ' ')} ${v}`);
+        return el('li', { class: i.present ? 'hw-item' : 'hw-item absent' },
+          el('div', { class: 'hw-name' }, i.name,
+            i.present ? null : el('span', { class: 'chip', 'data-state': 'unavailable' }, `not detected since ${clock(i.last_seen / 1000, true)}`)),
+          facts.length ? el('div', { class: 'help' }, facts.join(', ')) : null,
+          el('div', { class: 'help hw-seen' }, `First seen ${clock(i.first_seen / 1000, true)}`));
+      })));
+    }
   }
 
   renderStatus() {

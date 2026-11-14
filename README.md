@@ -42,11 +42,18 @@ page itself on `http://127.0.0.1:9393/` (no web server needed).
 
 Collectors use generic Linux interfaces (`/proc`, `/sys/class/hwmon`,
 `/sys/class/power_supply`, powercap, DRM), so the page adapts to the
-machine: panels for missing hardware simply do not appear.
+machine: panels for missing hardware simply do not appear. Hardware names
+are read from the system (DMI, `/proc/cpuinfo`, NVML, sysfs, `pci.ids`);
+none are built in.
+
+The hardware found is stored in the database and listed in Settings →
+Hardware. New devices are added automatically, and **Rescan hardware**
+detects everything again, for example after installing a driver.
 
 Numbers glide to new values, and live charts scroll continuously instead of
 jumping. A settings overlay (top right) changes how often each statistic is
-read, how long history is kept, the backup policy and display options.
+read, how long history is kept, the backup policy and display options, and
+lists the stored hardware.
 
 ## Install
 
@@ -125,6 +132,7 @@ See [docs/backups.md](docs/backups.md).
 - [HTTP API](docs/api.md)
 - [Web page](docs/frontend.md)
 - [Settings](docs/settings.md)
+- [Hardware inventory](docs/hardware.md)
 - [Installation](docs/install.md)
 - [Development](docs/development.md)
 

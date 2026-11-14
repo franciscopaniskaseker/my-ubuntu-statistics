@@ -28,6 +28,11 @@ pub fn lookup(vendor: u16, device: u16) -> Option<String> {
     v
 }
 
+/// Forget cached lookups (a hardware rescan reads the database again).
+pub fn clear_cache() {
+    CACHE.lock().unwrap_or_else(|e| e.into_inner()).clear();
+}
+
 fn find(db: &str, vendor: u16, device: u16) -> Option<String> {
     let vhex = format!("{vendor:04x}");
     let dhex = format!("{device:04x}");

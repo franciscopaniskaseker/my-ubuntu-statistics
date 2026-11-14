@@ -7,7 +7,10 @@
 //! * a tick that does not finish in time marks the collector `stalled` and no
 //!   new tick is started until the stuck one returns, so blocked threads
 //!   cannot pile up;
-//! * a collector reporting `unavailable` is re-probed every 30 s only.
+//! * a collector reporting `unavailable` is re-probed every 30 s only;
+//! * a hardware rescan (see `crate::inventory`) drops the instances of the
+//!   device-discovering collectors listed in [`REDISCOVER`] and ticks them
+//!   at once, cutting short re-probe waits and error backoff.
 
 pub mod battery;
 pub mod cpu;
@@ -49,6 +52,18 @@ pub trait Collector: Send + 'static {
 }
 
 type Factory = Arc<dyn Fn() -> Box<dyn Collector> + Send + Sync>;
+
+/// Collectors that discover devices; a hardware rescan rebuilds them.
+pub const REDISCOVER: &[&str] = &[
+    "disk",
+    "network",
+    "sensors",
+    "thermal",
+    "power",
+    "battery",
+    "gpu_nvidia",
+    "gpu_drm",
+];
 
 #[derive(Clone)]
 pub struct Spec {
@@ -157,9 +172,12 @@ pub async fn run(
     spec: Spec,
     mut settings_rx: watch::Receiver<Arc<Settings>>,
     hub: Arc<Hub>,
+    mut rescan: watch::Receiver<u64>,
     mut shutdown: watch::Receiver<bool>,
 ) {
     let name = spec.name;
+    let rediscover = REDISCOVER.contains(&name);
+    let mut generation = *rescan.borrow_and_update();
     let mut collector: Option<Box<dyn Collector>> = None;
     let mut inflight: Option<tokio::task::JoinHandle<TickResult>> = None;
     let mut fails: u32 = 0;
@@ -169,6 +187,16 @@ pub async fn run(
     loop {
         if *shutdown.borrow() {
             break;
+        }
+        let current = *rescan.borrow_and_update();
+        if current != generation {
+            generation = current;
+            if rediscover {
+                // Fresh instance: devices, names and caches are found again.
+                collector = None;
+                fails = 0;
+                panics = 0;
+            }
         }
         let settings = settings_rx.borrow_and_update().clone();
         let cfg = settings.collector(name);
@@ -199,10 +227,18 @@ pub async fn run(
                 next = candidate;
                 continue;
             }
+            r = rescan.changed() => {
+                if r.is_err() { break; }
+                if rediscover {
+                    next = tokio::time::Instant::now();
+                }
+                continue;
+            }
             _ = shutdown.changed() => break,
         }
 
         let tick_timeout = (interval * 2).clamp(Duration::from_secs(2), Duration::from_secs(10));
+        let tick_generation = generation;
         let mut handle = match inflight.take() {
             Some(h) => h,
             None => {
@@ -251,7 +287,12 @@ pub async fn run(
             duration,
             wall_ms,
         } = result;
-        collector = c;
+        // An instance from before a rescan is dropped when its tick returns.
+        collector = if rediscover && tick_generation != *rescan.borrow() {
+            None
+        } else {
+            c
+        };
         let stale = duration > tick_timeout;
 
         match outcome {
@@ -275,6 +316,7 @@ pub async fn run(
                     s.hint = health.hint.clone();
                     s.series = npoints;
                     s.last_duration_ms = duration.as_secs_f64() * 1000.0;
+                    s.ticks += 1;
                     if !unavailable {
                         s.last_ok_ms = wall_ms;
                     }
@@ -414,6 +456,7 @@ mod tests {
         }
         let (_stx, srx) = watch::channel(Arc::new(s));
         let (sdtx, sdrx) = watch::channel(false);
+        let (_rtx, rrx) = watch::channel(0u64);
         let specs = vec![
             spec("cpu", || Good(DescCache::default())),
             spec("memory", || Panicky),
@@ -425,6 +468,7 @@ mod tests {
                 sp,
                 srx.clone(),
                 hub.clone(),
+                rrx.clone(),
                 sdrx.clone(),
             )));
         }
@@ -436,6 +480,58 @@ mod tests {
         assert!(get("memory").restarts >= 1);
         assert_eq!(get("disk").state, State::Stalled);
         assert!(hub.latest("test.value").is_some());
+        sdtx.send(true).unwrap();
+        for h in handles {
+            let _ = tokio::time::timeout(Duration::from_secs(1), h).await;
+        }
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn rescan_rebuilds_device_collectors_only() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        let hub = Arc::new(Hub::new());
+        let mut s = Settings::default();
+        for c in s.collectors.values_mut() {
+            c.interval_ms = 30_000;
+        }
+        let (_stx, srx) = watch::channel(Arc::new(s));
+        let (sdtx, sdrx) = watch::channel(false);
+        let (rtx, rrx) = watch::channel(0u64);
+        let made_battery = Arc::new(AtomicUsize::new(0));
+        let made_cpu = Arc::new(AtomicUsize::new(0));
+        let (mb, mc) = (made_battery.clone(), made_cpu.clone());
+        let specs = vec![
+            spec("battery", move || {
+                mb.fetch_add(1, Ordering::SeqCst);
+                Good(DescCache::default())
+            }),
+            spec("cpu", move || {
+                mc.fetch_add(1, Ordering::SeqCst);
+                Good(DescCache::default())
+            }),
+        ];
+        let mut handles = Vec::new();
+        for sp in specs {
+            handles.push(tokio::spawn(run(
+                sp,
+                srx.clone(),
+                hub.clone(),
+                rrx.clone(),
+                sdrx.clone(),
+            )));
+        }
+        tokio::time::sleep(Duration::from_millis(400)).await;
+        assert_eq!(made_battery.load(Ordering::SeqCst), 1);
+        rtx.send(1).unwrap();
+        tokio::time::sleep(Duration::from_millis(400)).await;
+        // The device collector was rebuilt and ticked at once (its 30 s
+        // interval had not elapsed); the CPU collector kept its instance.
+        assert_eq!(made_battery.load(Ordering::SeqCst), 2);
+        assert_eq!(made_cpu.load(Ordering::SeqCst), 1);
+        let st = hub.statuses();
+        let ticks = |n: &str| st.iter().find(|s| s.name == n).unwrap().ticks;
+        assert_eq!(ticks("battery"), 2);
+        assert_eq!(ticks("cpu"), 1);
         sdtx.send(true).unwrap();
         for h in handles {
             let _ = tokio::time::timeout(Duration::from_secs(1), h).await;

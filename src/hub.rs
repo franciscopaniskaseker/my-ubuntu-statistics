@@ -16,6 +16,15 @@ pub const RING_MAX_POINTS: usize = 1800;
 /// Series not updated for this long disappear from the live catalog.
 pub const STALE_MS: i64 = 10 * 60 * 1000;
 
+/// A device group seen in the live catalog.
+#[derive(Debug, Clone)]
+pub struct GroupSeen {
+    pub collector: &'static str,
+    pub group: String,
+    pub label: String,
+    pub last_ms: i64,
+}
+
 #[derive(Debug)]
 pub struct SseMsg {
     pub event: &'static str,
@@ -234,6 +243,36 @@ impl Hub {
         let mut v: Vec<Desc> = g.series.values().map(|e| e.desc.clone()).collect();
         v.sort_by(|a, b| crate::util::sysfs::natural_cmp(&a.key, &b.key));
         (g.catalog_version, v)
+    }
+
+    /// Device groups in the live catalog with the newest update of any of
+    /// their series.
+    pub fn groups(&self) -> Vec<GroupSeen> {
+        let g = lock(&self.inner);
+        let mut m: BTreeMap<(&'static str, String), GroupSeen> = BTreeMap::new();
+        for e in g.series.values() {
+            if e.desc.group.is_empty() {
+                continue;
+            }
+            let k = (e.desc.collector, e.desc.group.clone());
+            let s = m.entry(k).or_insert_with(|| GroupSeen {
+                collector: e.desc.collector,
+                group: e.desc.group.clone(),
+                label: e.desc.group_label.clone(),
+                last_ms: 0,
+            });
+            s.last_ms = s.last_ms.max(e.last_ms);
+        }
+        m.into_values().collect()
+    }
+
+    /// Latest text facts of one collector.
+    pub fn info_of(&self, collector: &str) -> BTreeMap<String, String> {
+        lock(&self.inner)
+            .info
+            .get(collector)
+            .cloned()
+            .unwrap_or_default()
     }
 
     pub fn desc(&self, key: &str) -> Option<Desc> {

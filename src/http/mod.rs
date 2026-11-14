@@ -14,7 +14,7 @@ use axum::extract::{Path, Query, State};
 use axum::http::{HeaderValue, StatusCode, header};
 use axum::response::sse::{Event, KeepAlive, Sse};
 use axum::response::{IntoResponse, Response};
-use axum::routing::get;
+use axum::routing::{get, post};
 use axum::{Json, Router};
 use serde::Deserialize;
 use serde_json::{Value, json};
@@ -38,7 +38,7 @@ pub struct AppState {
     pub settings_tx: watch::Sender<Arc<Settings>>,
     pub backups: Arc<backup::Manager>,
     pub config: Config,
-    pub host: Value,
+    pub hardware: Arc<crate::inventory::Hardware>,
     pub notes: Vec<String>,
     pub sse_clients: AtomicUsize,
     pub roots: Roots,
@@ -68,6 +68,8 @@ pub fn router(state: St) -> Router {
         .route("/api/status", get(status))
         .route("/api/processes", get(processes))
         .route("/api/process", get(process))
+        .route("/api/hardware", get(hardware))
+        .route("/api/hardware/rescan", post(rescan_hardware))
         .route("/api/backups", get(list_backups).post(create_backup))
         .layer(axum::middleware::from_fn_with_state(policy, guard::guard))
         .with_state(state)
@@ -136,7 +138,7 @@ async fn meta(State(st): State<St>) -> Json<Value> {
     Json(json!({
         "instance": st.hub.instance,
         "version": env!("CARGO_PKG_VERSION"),
-        "host": st.host,
+        "host": *st.hardware.host(),
         "catalog_version": version,
         "series": cat,
         "collectors": collectors,
@@ -366,6 +368,33 @@ async fn process(State(st): State<St>, Query(q): Query<PidQ>) -> Response {
         o.insert("now_ms".into(), json!(now_ms()));
     }
     Json(info).into_response()
+}
+
+/// The stored hardware inventory.
+async fn hardware(State(st): State<St>) -> Json<Value> {
+    Json(st.hardware.payload("current"))
+}
+
+/// Start a hardware rescan; the result arrives as a `hardware` SSE event.
+async fn rescan_hardware(State(st): State<St>) -> Response {
+    use crate::inventory::RescanError;
+    match st.hardware.start_rescan() {
+        Ok(ms) => (
+            StatusCode::ACCEPTED,
+            Json(json!({ "started": true, "expected_ms": ms })),
+        )
+            .into_response(),
+        Err(RescanError::Busy) => {
+            json_error(StatusCode::CONFLICT, "a hardware rescan is already running")
+        }
+        Err(RescanError::TooSoon(ms)) => json_error(
+            StatusCode::TOO_MANY_REQUESTS,
+            &format!(
+                "a rescan just finished; try again in {} s",
+                (ms + 999) / 1000
+            ),
+        ),
+    }
 }
 
 async fn get_settings(State(st): State<St>) -> Json<Value> {

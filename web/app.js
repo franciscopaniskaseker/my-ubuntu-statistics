@@ -52,6 +52,8 @@ const settingsPanel = new SettingsPanel(document.getElementById('settings'), {
   status: () => api('/api/status'),
   backups: () => api('/api/backups'),
   backupNow: () => api('/api/backups', { method: 'POST' }),
+  hardware: () => api('/api/hardware'),
+  rescan: () => api('/api/hardware/rescan', { method: 'POST' }),
   save: saveSettings,
 });
 
@@ -225,6 +227,16 @@ function openStream() {
   });
   es.addEventListener('catalog', () => onCatalog());
   es.addEventListener('settings', (e) => applySettings(JSON.parse(e.data)));
+  es.addEventListener('hardware', async (e) => {
+    const d = JSON.parse(e.data);
+    if (d.host && state.meta) {
+      state.meta.host = d.host;
+      renderHeader();
+    }
+    settingsPanel.onHardware(d);
+    // Names may have changed even when the set of series did not.
+    if (d.reason === 'rescanned') await rebuild().catch(() => {});
+  });
   es.addEventListener('status', () => {
     pollStatus();
     settingsPanel.refreshIfOpen();

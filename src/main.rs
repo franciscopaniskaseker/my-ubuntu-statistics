@@ -8,6 +8,7 @@ mod health;
 mod hostinfo;
 mod http;
 mod hub;
+mod inventory;
 mod model;
 mod procinfo;
 mod settings;
@@ -177,6 +178,7 @@ async fn serve_async(cfg: Config) -> Result<()> {
     }
 
     let mut settings = Settings::default();
+    let hardware_json = opened.as_ref().and_then(|o| o.hardware_json.clone());
     if let Some(o) = &opened {
         notes.extend(o.notes.iter().cloned());
         if let Some(j) = &o.settings_json {
@@ -214,14 +216,28 @@ async fn serve_async(cfg: Config) -> Result<()> {
     let hub = Arc::new(hub::Hub::new());
 
     // Collectors.
+    let (rescan_tx, rescan_rx) = watch::channel(0u64);
     for spec in collectors::all(&roots) {
         tokio::spawn(collectors::run(
             spec,
             settings_rx.clone(),
             hub.clone(),
+            rescan_rx.clone(),
             shutdown_rx.clone(),
         ));
     }
+
+    // Hardware inventory (stored in the database, rescanned on request).
+    let hardware = Arc::new(inventory::Hardware::new(
+        hub.clone(),
+        roots.clone(),
+        storage.clone(),
+        settings_rx.clone(),
+        rescan_tx,
+        hardware_json.as_deref(),
+        hostinfo::collect(&roots),
+    ));
+    tokio::spawn(inventory::run(hardware.clone(), shutdown_rx.clone()));
 
     // Persistence of averaged buckets.
     if let Some(st) = storage.clone() {
@@ -288,7 +304,7 @@ async fn serve_async(cfg: Config) -> Result<()> {
         settings_tx,
         backups,
         config: cfg.clone(),
-        host: hostinfo::collect(&roots),
+        hardware,
         roots: roots.clone(),
         proc_slots: Arc::new(tokio::sync::Semaphore::new(http::PROC_SLOTS)),
         notes,

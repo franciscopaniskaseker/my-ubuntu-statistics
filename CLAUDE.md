@@ -18,6 +18,7 @@ src/storage/          schema, writer thread, rollups, queries, recovery
 src/backup.rs         backups, rotation, restore
 src/http/             routes, embedded assets, Host/Origin guard
 src/procinfo.rs       on-demand details of one process (/api/process)
+src/inventory.rs      hardware inventory stored in the database, rescan
 src/settings.rs       runtime settings; src/config.rs bootstrap config
 src/util/             sysfs readers, counters, parsing, time, lock, logging
 web/                  page (index.html, style.css, *.js, vendor/)
@@ -46,6 +47,7 @@ bash -n install.sh && systemd-analyze verify packaging/hwstats.service
 - `docs/api.md`: HTTP endpoints and SSE events.
 - `docs/frontend.md`: page structure, panels, colors, smoothing.
 - `docs/settings.md`: config.toml and runtime settings with defaults.
+- `docs/hardware.md`: hardware inventory, how names are found, rescan.
 - `docs/install.md`: install.sh, service, doctor, troubleshooting.
 - `docs/development.md`: building, fixtures, adding a collector.
 

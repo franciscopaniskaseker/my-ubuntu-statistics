@@ -205,6 +205,8 @@ pub struct CollectorStatus {
     pub series: usize,
     pub last_ok_ms: i64,
     pub last_duration_ms: f64,
+    /// Completed ticks since start (including ticks that found no source).
+    pub ticks: u64,
     pub errors: u64,
     pub restarts: u64,
 }
@@ -221,6 +223,7 @@ impl CollectorStatus {
             series: 0,
             last_ok_ms: 0,
             last_duration_ms: 0.0,
+            ticks: 0,
             errors: 0,
             restarts: 0,
         }

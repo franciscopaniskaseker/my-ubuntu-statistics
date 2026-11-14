@@ -19,6 +19,10 @@ on the blocking thread pool inside `catch_unwind` and a timeout of
   up. Its results are discarded when it finally returns late.
 - **No source.** A collector reporting `unavailable` is re-probed every 30 s
   only.
+- **Hardware rescan.** The device-discovering collectors drop their
+  instance and tick at once, which also ends a re-probe wait or an error
+  backoff. One rescan at a time, at least 10 s apart. See
+  [hardware.md](hardware.md#rescan).
 - **Bounded threads.** The blocking pool is capped at 32 threads.
 
 ## NVML crash guard

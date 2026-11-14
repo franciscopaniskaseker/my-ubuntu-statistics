@@ -16,8 +16,16 @@ use std::time::{Duration, Instant};
 use tokio::sync::watch;
 
 pub enum Msg {
-    Persist { ts: i64, rows: Vec<(Desc, f64)> },
+    Persist {
+        ts: i64,
+        rows: Vec<(Desc, f64)>,
+    },
     Settings(String),
+    /// Upsert one row of the `meta` table.
+    Meta {
+        key: String,
+        value: String,
+    },
     Flush(std::sync::mpsc::Sender<()>),
     Shutdown,
 }
@@ -269,6 +277,10 @@ pub fn spawn(
                         let r = w.save_settings(&json);
                         w.on_result("save settings", r);
                     }
+                    Some(Msg::Meta { key, value }) => {
+                        let r = super::schema::meta_set(&w.conn, &key, &value);
+                        w.on_result("save meta", r);
+                    }
                     Some(Msg::Flush(tx)) => {
                         w.checkpoint();
                         let _ = tx.send(());
@@ -281,6 +293,9 @@ pub fn spawn(
                                 }
                                 Msg::Settings(json) => {
                                     let _ = w.save_settings(&json);
+                                }
+                                Msg::Meta { key, value } => {
+                                    let _ = super::schema::meta_set(&w.conn, &key, &value);
                                 }
                                 Msg::Flush(tx) => {
                                     let _ = tx.send(());
