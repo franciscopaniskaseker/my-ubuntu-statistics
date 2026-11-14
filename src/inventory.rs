@@ -7,7 +7,9 @@
 //! Card titles on the page stay live; the inventory is the stored record.
 //!
 //! * Every 60 s new devices are added and each entry is marked present or
-//!   absent. Stored names and details are kept.
+//!   absent. A stored name is refreshed only from a device's `name` fact (a
+//!   stable name without volatile parts such as the kernel device name);
+//!   other names and the stored details are kept until a rescan.
 //! * A rescan rebuilds the device-discovering collectors, clears the PCI
 //!   name cache and re-reads the host facts, then replaces the list with
 //!   what was detected. An entry that was not found is removed only when its
@@ -78,6 +80,8 @@ pub struct Found {
     pub key: String,
     pub kind: &'static str,
     pub name: String,
+    /// The name came from a stable `name` fact (not the live label).
+    pub stable_name: bool,
     pub details: BTreeMap<String, String>,
 }
 
@@ -137,6 +141,7 @@ pub fn host_items(host: &Value, cpu_info: &BTreeMap<String, String>) -> Vec<Foun
             key: "machine".into(),
             kind: "machine",
             name,
+            stable_name: true,
             details: d,
         });
     }
@@ -159,6 +164,7 @@ pub fn host_items(host: &Value, cpu_info: &BTreeMap<String, String>) -> Vec<Foun
             key: "cpu".into(),
             kind: "cpu",
             name: cpu,
+            stable_name: true,
             details: d,
         });
     }
@@ -167,6 +173,7 @@ pub fn host_items(host: &Value, cpu_info: &BTreeMap<String, String>) -> Vec<Foun
             key: "memory".into(),
             kind: "memory",
             name: "System memory".into(),
+            stable_name: true,
             details: [("usable".to_string(), gib(m))].into(),
         });
     }
@@ -174,7 +181,9 @@ pub fn host_items(host: &Value, cpu_info: &BTreeMap<String, String>) -> Vec<Foun
 }
 
 /// Devices from the live catalog whose series were updated at or after
-/// `since_ms`. Network interfaces count only when they are physical.
+/// `since_ms`. Network interfaces count only when they are physical;
+/// devices with a `virtual` fact (device-mapper, RAID) are skipped. A
+/// `name` fact, when present, is the device name instead of the label.
 pub fn device_items(
     groups: &[GroupSeen],
     info: &dyn Fn(&str) -> BTreeMap<String, String>,
@@ -194,11 +203,16 @@ pub fn device_items(
             .entry(g.collector)
             .or_insert_with(|| info(g.collector));
         let prefix = format!("{}.", g.group);
+        if all.contains_key(&format!("{prefix}virtual")) {
+            continue;
+        }
+        let fact_name = all.get(&format!("{prefix}name")).cloned();
         let details = all
             .iter()
             .filter_map(|(k, v)| {
                 let fact = k.strip_prefix(&prefix)?;
                 let keep = !fact.contains('.')
+                    && fact != "name"
                     && !DYNAMIC_FACTS.contains(&fact)
                     && !fact.contains("serial");
                 keep.then(|| (fact.to_string(), v.clone()))
@@ -207,7 +221,8 @@ pub fn device_items(
         out.push(Found {
             key: format!("{}:{}", g.collector, g.group),
             kind,
-            name: g.label.clone(),
+            stable_name: fact_name.is_some(),
+            name: fact_name.unwrap_or_else(|| g.label.clone()),
             details,
         });
     }
@@ -223,7 +238,8 @@ fn sort_items(items: &mut [Item]) {
     });
 }
 
-/// Periodic update: add new devices, mark presence, keep stored names.
+/// Periodic update: add new devices, mark presence, refresh names that
+/// come from a stable `name` fact and keep the others.
 /// Returns true when something other than `last_seen` changed.
 pub fn merge(inv: &mut Inventory, found: Vec<Found>, now: i64) -> bool {
     let mut changed = false;
@@ -233,6 +249,10 @@ pub fn merge(inv: &mut Inventory, found: Vec<Found>, now: i64) -> bool {
             Some(i) => {
                 if !i.present {
                     i.present = true;
+                    changed = true;
+                }
+                if f.stable_name && i.name != f.name {
+                    i.name = f.name;
                     changed = true;
                 }
                 i.last_seen = now;
@@ -612,6 +632,13 @@ mod tests {
             group("network", "vpn0", "vpn0 (virtual)", 100),
             group("cpu", "core0", "core 0", 100),
             group("disk", "old_disk", "Old disk (sdb)", 10),
+            group(
+                "disk",
+                "example_ssd_1tb_123456",
+                "Example SSD 1TB (nvme0n1)",
+                100,
+            ),
+            group("disk", "dm_root", "root (dm-0)", 100),
         ];
         let info = |c: &str| -> BTreeMap<String, String> {
             if c == "gpu_nvidia" {
@@ -624,15 +651,36 @@ mod tests {
                 .into_iter()
                 .map(|(k, v)| (k.to_string(), v.to_string()))
                 .collect()
+            } else if c == "disk" {
+                [
+                    ("example_ssd_1tb_123456.name", "Example SSD 1TB"),
+                    ("dm_root.virtual", "yes"),
+                ]
+                .into_iter()
+                .map(|(k, v)| (k.to_string(), v.to_string()))
+                .collect()
             } else {
                 BTreeMap::new()
             }
         };
         let f = device_items(&groups, &info, &|i| i == "eth0", 50);
         let keys: Vec<&str> = f.iter().map(|x| x.key.as_str()).collect();
-        assert_eq!(keys, vec!["gpu_nvidia:0000-01-00.0", "network:eth0"]);
+        assert_eq!(
+            keys,
+            vec![
+                "gpu_nvidia:0000-01-00.0",
+                "network:eth0",
+                "disk:example_ssd_1tb_123456"
+            ]
+        );
         assert_eq!(f[0].details.len(), 1);
         assert_eq!(f[0].details["vbios"], "1.0");
+        assert!(!f[0].stable_name);
+        // The disk is named by its model, without the kernel device name;
+        // the device-mapper volume is not hardware.
+        assert_eq!(f[2].name, "Example SSD 1TB");
+        assert!(f[2].stable_name);
+        assert!(f[2].details.is_empty());
     }
 
     fn found(key: &str, kind: &'static str, name: &str) -> Found {
@@ -640,12 +688,13 @@ mod tests {
             key: key.into(),
             kind,
             name: name.into(),
+            stable_name: false,
             details: BTreeMap::new(),
         }
     }
 
     #[test]
-    fn merge_keeps_names_and_marks_presence() {
+    fn merge_keeps_label_names_and_marks_presence() {
         let mut inv = replace(
             &Inventory::default(),
             vec![
@@ -657,8 +706,8 @@ mod tests {
             1,
         );
         assert_eq!(inv.items.len(), 2);
-        // The disk is gone, a USB disk appeared and the CPU name changed:
-        // the stored CPU name is kept until a rescan.
+        // The disk is gone, a USB disk appeared and the CPU label changed:
+        // a label (not a stable name fact) does not replace the stored name.
         let changed = merge(
             &mut inv,
             vec![
@@ -681,6 +730,16 @@ mod tests {
             ],
             3
         ));
+        // A name from a stable `name` fact replaces the stored one.
+        let mut renamed = found("disk:b", "disk", "Example SSD 1TB");
+        renamed.stable_name = true;
+        assert!(merge(
+            &mut inv,
+            vec![found("cpu", "cpu", "CPU B"), renamed],
+            4
+        ));
+        let name = |k: &str| inv.items.iter().find(|i| i.key == k).unwrap().name.clone();
+        assert_eq!(name("disk:b"), "Example SSD 1TB");
     }
 
     #[test]

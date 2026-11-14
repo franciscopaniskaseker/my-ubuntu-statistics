@@ -179,7 +179,8 @@ pub async fn run(
     let rediscover = REDISCOVER.contains(&name);
     let mut generation = *rescan.borrow_and_update();
     let mut collector: Option<Box<dyn Collector>> = None;
-    let mut inflight: Option<tokio::task::JoinHandle<TickResult>> = None;
+    // A tick still running, with the rescan generation it started in.
+    let mut inflight: Option<(tokio::task::JoinHandle<TickResult>, u64)> = None;
     let mut fails: u32 = 0;
     let mut panics: u32 = 0;
     let mut next = tokio::time::Instant::now();
@@ -238,14 +239,16 @@ pub async fn run(
         }
 
         let tick_timeout = (interval * 2).clamp(Duration::from_secs(2), Duration::from_secs(10));
-        let tick_generation = generation;
-        let mut handle = match inflight.take() {
+        let (mut handle, tick_generation) = match inflight.take() {
             Some(h) => h,
             None => {
                 let make = spec.make.clone();
                 let c = collector.take();
                 let s = settings.clone();
-                tokio::task::spawn_blocking(move || run_tick(c, make, s, interval))
+                (
+                    tokio::task::spawn_blocking(move || run_tick(c, make, s, interval)),
+                    generation,
+                )
             }
         };
 
@@ -265,7 +268,7 @@ pub async fn run(
                 continue;
             }
             Err(_) => {
-                inflight = Some(handle);
+                inflight = Some((handle, tick_generation));
                 crate::warn_limited!(
                     format!("collector:{name}:stalled"),
                     "{name}: tick did not finish within {:?}; waiting for it before starting a new one",

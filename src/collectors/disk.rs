@@ -51,6 +51,8 @@ pub fn parse_diskstats(s: &str) -> Vec<(String, DiskCounters)> {
 struct DiskInfo {
     id: String,
     label: String,
+    /// Stable hardware name (the model) without the kernel device name.
+    model: Option<String>,
     virtual_dev: bool,
 }
 
@@ -93,6 +95,7 @@ impl Disk {
             return Some(DiskInfo {
                 id: format!("dm_{}", slug(&dm)),
                 label: format!("{dm} ({name})"),
+                model: None,
                 virtual_dev: true,
             });
         }
@@ -100,6 +103,7 @@ impl Disk {
             return Some(DiskInfo {
                 id: slug(name),
                 label: format!("RAID {name}"),
+                model: None,
                 virtual_dev: true,
             });
         }
@@ -130,13 +134,14 @@ impl Disk {
             }
             _ => slug(name),
         };
-        let label = match model {
+        let label = match &model {
             Some(m) => format!("{m} ({name})"),
             None => name.to_string(),
         };
         Some(DiskInfo {
             id,
             label,
+            model,
             virtual_dev: false,
         })
     }
@@ -196,6 +201,13 @@ impl Collector for Disk {
                 continue;
             };
             any = true;
+            // Facts for the hardware inventory: a stable name, and a flag
+            // for device-mapper and RAID devices (not hardware).
+            if info.virtual_dev {
+                out.info(format!("{}.virtual", info.id), "yes");
+            } else if let Some(m) = &info.model {
+                out.info(format!("{}.name", info.id), m.clone());
+            }
             if let (Some(dt), Some(prev)) = (dt, self.prev.get(&name).copied()) {
                 let reads = delta(prev.reads, cur.reads);
                 let writes = delta(prev.writes, cur.writes);

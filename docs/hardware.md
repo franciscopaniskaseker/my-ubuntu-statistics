@@ -16,7 +16,7 @@ at run time:
 | Memory | `MemTotal` in `/proc/meminfo` (usable memory) |
 | NVIDIA GPUs | NVML (or `nvidia-smi`), with static facts such as CUDA cores, VBIOS and driver |
 | AMD/Intel GPUs | `product_name` in sysfs, else the system `pci.ids` database (`/usr/share/misc/pci.ids`, `/usr/share/hwdata/pci.ids`) |
-| Disks | `model` in sysfs plus the kernel device name |
+| Disks | `model` in sysfs (device-mapper and RAID devices are not listed) |
 | Network adapters | interface name and type; only interfaces with a `device` link in sysfs (physical) |
 | Batteries, power supplies | `power_supply` class: name, type and model |
 | Sensor chips | hwmon driver name. Common drivers get a readable label (CPU, NVMe, memory DIMM, embedded controller, motherboard, Wi-Fi); any other driver shows as `driver (device)`. |
@@ -53,9 +53,27 @@ A document with another `format` is ignored and rebuilt.
 - **Every 60 seconds.** New devices are added (for example a USB disk) with
   their current name. Each entry is marked present when its series were
   updated in the last 2 minutes, otherwise absent; absent entries are kept
-  with their last-seen time. Stored names and details are kept. The document
-  is written when something changes, and at least hourly to update
-  `last_seen`.
+  with their last-seen time. The document is written when something
+  changes, and at least hourly to update `last_seen`.
+
+### Names
+
+A collector can publish a stable name for a device as the info fact
+`<group>.name`: the disk model (without the kernel device name such as
+`nvme0n1`, which can change between boots) and the NVIDIA GPU name once
+NVML or `nvidia-smi` reported it. The computer, processor and memory names
+come from the host facts. These names replace the stored name whenever they
+differ.
+
+Other devices are stored under their live label (for example
+`eno1 (Ethernet)` or `CPU (k10temp)`). That name is kept until a rescan, as
+are the stored details; new detail keys are added. A device-mapper or RAID
+device publishes `<group>.virtual` and is skipped.
+
+An NVIDIA GPU that is asleep when its collector starts has no name fact
+yet. Its label is then a placeholder (`NVIDIA GPU <address>`). The stored
+name stays, and after a rescan the placeholder is replaced as soon as the
+GPU wakes.
 
 The dashboard's card titles always use the live names from the collectors.
 The inventory is the stored record.

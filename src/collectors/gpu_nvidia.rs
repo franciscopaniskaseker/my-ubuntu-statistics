@@ -619,6 +619,11 @@ impl Collector for GpuNvidia {
                 format!("{}.state", dev_slug(&g.addr)),
                 if sleeping { "sleeping" } else { "active" },
             );
+            // Stable name for the hardware inventory, once NVML or
+            // nvidia-smi reported it (not the placeholder label).
+            if let Some(n) = self.names.get(&g.addr) {
+                out.info(format!("{}.name", dev_slug(&g.addr)), n.clone());
+            }
             if !sleeping && g.driver.as_deref() == Some("nvidia") {
                 awake.push(g.clone());
             }

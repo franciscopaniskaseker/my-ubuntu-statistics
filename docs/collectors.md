@@ -23,14 +23,14 @@ hidden. Every tick reports a health state shown in Settings → Status and by
 | `system` | 2 s | `/proc/loadavg`, `/proc/uptime`, `/proc/sys/fs/file-nr`; info from `platform_profile`, cpufreq governor, driver, EPP, boost | `load.{1,5,15}`, `sys.threads`, `sys.uptime`, `sys.open_files` |
 | `pressure` | 2 s | `/proc/pressure/{cpu,memory,io,irq}` (avg10) | `psi.<resource>.{some,full}` |
 | `memory` | 2 s | `/proc/meminfo` (estimate when `MemAvailable` is missing), `/proc/vmstat` | `mem.{total,used,available,free,cached,used_pct,shmem,dirty,writeback,anon,slab}`, `swap.{total,used,used_pct,in,out}`, `mem.{majfault,pagein,pageout}` |
-| `disk` | 3 s | `/proc/diskstats` (14/18/20-field variants), `/sys/block/*` | `disk.<id>.{read_bps,write_bps,read_iops,write_iops,util,await,inflight}`, `disk.total.{read_bps,write_bps}` |
+| `disk` | 3 s | `/proc/diskstats` (14/18/20-field variants), `/sys/block/*` | `disk.<id>.{read_bps,write_bps,read_iops,write_iops,util,await,inflight}`, `disk.total.{read_bps,write_bps}`; info facts `<id>.name` (model) for physical disks and `<id>.virtual` for device-mapper and RAID devices |
 | `filesystem` | 30 s | `/proc/self/mountinfo` + `statvfs` | `fs.<mount>.{total,used,avail,used_pct,inodes_pct}` |
 | `network` | 3 s | `/proc/net/dev`, `/proc/net/wireless`, `/proc/net/sockstat{,6}`, `/sys/class/net/*` | `net.<if>.{rx_bps,tx_bps,rx_pps,tx_pps,errors,drops,up,wifi_quality,wifi_dbm}`, `net.total.{rx_bps,tx_bps}`, `net.{tcp,udp}.inuse`, `net.tcp.tw` |
 | `sensors` | 2 s | every `/sys/class/hwmon/hwmon*` chip | `hwmon.<chip>.<device-id>.<type><n>` |
 | `thermal` | 5 s | `/sys/class/thermal/thermal_zone*` not already in hwmon | `thermal.<type>[.<n>]` |
 | `power` | 2 s | powercap RAPL `energy_uj` (fallback: hwmon `zenpower`, `amd_energy`, `fam15h_power`) | `power.rapl.<zone>[.<subzone>]`, `power.hwmon.*` |
 | `battery` | 5 s | `/sys/class/power_supply/*` | `bat.<name>.{capacity,power,power_signed,voltage,energy,energy_full,health,cycles,time_left}`, `psu.<name>.{online,contract_w}` |
-| `gpu_nvidia` | 2 s | NVML via `libnvidia-ml.so.1` (fallback `nvidia-smi`, 2 s timeout) | `gpu.<pci>.{active,util,mem_util,vram_used,vram_total,temp,power,power_limit,clock_gr,clock_sm,clock_mem,clock_video,fan,enc,enc_sessions,enc_fps,enc_latency,dec,pcie_rx,pcie_tx,procs}`; info facts and a per-process list (see below) |
+| `gpu_nvidia` | 2 s | NVML via `libnvidia-ml.so.1` (fallback `nvidia-smi`, 2 s timeout) | `gpu.<pci>.{active,util,mem_util,vram_used,vram_total,temp,power,power_limit,clock_gr,clock_sm,clock_mem,clock_video,fan,enc,enc_sessions,enc_fps,enc_latency,dec,pcie_rx,pcie_tx,procs}`; info facts (including `<pci>.name` once NVML or `nvidia-smi` reported the name) and a per-process list (see below) |
 | `gpu_drm` | 2 s | `/sys/class/drm/card*/device` + the card's hwmon | `gpu.<pci>.{active,util,mem_util,video,vram_used,vram_total,gtt_used,gtt_total,clock_gr,clock_mem,clock_fabric,temp,power,ppt,voltage,voltage_soc}` |
 | `processes` | 3 s | `/proc/[pid]/stat`, `/proc/[pid]/cmdline`, `/etc/passwd` | `proc.{count,threads,running,blocked,zombie}`; top 15 applications by CPU and by memory, and every process for the details overlay (live only; see [Applications](#applications)) |
 
