@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>hwstats</title>
+<link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/assets/vendor/uPlot.min.css">
+<link rel="stylesheet" href="/assets/style.css">
+<script src="/assets/vendor/uPlot.iife.min.js" defer></script>
+<script type="module" src="/assets/app.js"></script>
+</head>
+<body>
+<div id="banners" aria-live="polite"></div>
+
+<header class="plate">
+  <div class="plate-id">
+    <h1 id="hostname">hwstats</h1>
+    <dl class="plate-facts" id="facts"></dl>
+  </div>
+  <div class="plate-controls">
+    <div class="range" role="radiogroup" aria-label="Chart time range">
+      <button type="button" role="radio" data-range="live" aria-checked="true">Live</button>
+      <button type="button" role="radio" data-range="1h" aria-checked="false">1 h</button>
+      <button type="button" role="radio" data-range="6h" aria-checked="false">6 h</button>
+      <button type="button" role="radio" data-range="24h" aria-checked="false">24 h</button>
+      <button type="button" role="radio" data-range="7d" aria-checked="false">7 d</button>
+      <button type="button" role="radio" data-range="30d" aria-checked="false">30 d</button>
+    </div>
+    <span class="conn" id="conn" data-state="wait"><span class="dot" aria-hidden="true"></span><span id="conn-label">Connecting</span></span>
+    <button type="button" id="open-settings" class="icon-btn" aria-label="Settings" title="Settings">
+      <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2.2" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="10" cy="17" r="2.2" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>
+    </button>
+  </div>
+</header>
+
+<main id="grid" class="grid" aria-live="off"></main>
+
+<dialog id="settings" aria-labelledby="settings-title">
+  <div class="dlg">
+    <div class="dlg-head">
+      <h2 id="settings-title">Settings</h2>
+      <button type="button" class="dlg-close icon-btn" aria-label="Close settings">
+        <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+      </button>
+    </div>
+    <div class="dlg-tabs" role="tablist" aria-label="Settings sections">
+      <button type="button" role="tab" data-tab="collectors" aria-selected="true">Statistics</button>
+      <button type="button" role="tab" data-tab="history" aria-selected="false" tabindex="-1">History</button>
+      <button type="button" role="tab" data-tab="backups" aria-selected="false" tabindex="-1">Backups</button>
+      <button type="button" role="tab" data-tab="display" aria-selected="false" tabindex="-1">Display</button>
+      <button type="button" role="tab" data-tab="status" aria-selected="false" tabindex="-1">Status</button>
+    </div>
+    <div class="dlg-body" role="tabpanel"></div>
+    <div class="dlg-foot">
+      <span class="dlg-note" aria-live="polite"></span>
+      <span class="help">Changes apply immediately.</span>
+    </div>
+  </div>
+</dialog>
+</body>
+</html>

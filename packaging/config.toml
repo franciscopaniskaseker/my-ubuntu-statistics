@@ -1,0 +1,21 @@
+# hwstats configuration (read at start-up).
+#
+# Collection intervals, history retention, backups and display options are
+# changed in the web page (Settings) and stored in the database.
+
+# Address of the web page. Keep it on 127.0.0.1: the page is meant for this
+# computer only.
+listen = "127.0.0.1:9393"
+
+# SQLite database file.
+database = "/var/lib/hwstats/hwstats.db"
+
+# Folder for the daily compressed backups (default: <database folder>/backups).
+# backup_dir = "/var/lib/hwstats/backups"
+
+# Extra host names accepted in the HTTP Host header. Only needed when
+# `listen` is not a loopback address. "*" accepts any name.
+allowed_hosts = []
+
+# Log level: error, warn, info or debug.
+log_level = "info"

@@ -1,0 +1,37 @@
+[Unit]
+Description=hwstats local hardware statistics dashboard
+Documentation=file:///usr/local/share/doc/hwstats/README.md
+After=local-fs.target network.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=notify
+NotifyAccess=main
+ExecStart=/usr/local/bin/hwstats --config /etc/hwstats/config.toml serve
+User=hwstats
+Group=hwstats
+StateDirectory=hwstats
+StateDirectoryMode=0750
+Environment=RUST_BACKTRACE=1
+
+# Stability: restart on any exit, watchdog restarts a wedged process.
+Restart=always
+RestartSec=5
+WatchdogSec=60
+TimeoutStartSec=120
+TimeoutStopSec=20
+
+# Read root-only counters (RAPL energy) without running as root.
+AmbientCapabilities=CAP_DAC_READ_SEARCH
+CapabilityBoundingSet=CAP_DAC_READ_SEARCH
+NoNewPrivileges=yes
+ProtectSystem=full
+ProtectHome=read-only
+
+# Keep the monitor light and bounded.
+Nice=5
+MemoryMax=512M
+TasksMax=128
+
+[Install]
+WantedBy=multi-user.target
