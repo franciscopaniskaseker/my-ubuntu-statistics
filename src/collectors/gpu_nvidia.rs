@@ -694,7 +694,7 @@ mod tests {
 
     #[test]
     fn smi_parse() {
-        let s = "00000000:01:00.0, NVIDIA GeForce RTX 5070 Laptop GPU, 16, 9, 740, 8151, 58, 16.14, 510, 405, [N/A], P8\n";
+        let s = "00000000:01:00.0, NVIDIA Example Laptop GPU, 16, 9, 740, 8151, 58, 16.14, 510, 405, [N/A], P8\n";
         let r = parse_smi(s);
         assert_eq!(r.len(), 1);
         assert_eq!(r[0].addr, "0000:01:00.0");

@@ -41,7 +41,7 @@ fake trees. The fixtures live in `tests/fixtures/<machine>/{proc,sys}`:
 
 | Fixture | Content |
 |---|---|
-| `laptop` | This laptop's layout: two NVMe and two DIMM sensor chips, hp-wmi fans, a battery chip and an amdgpu chip (both skipped), a −273 °C sensor, an unreadable sensor, RAPL zones, a runtime-suspended NVIDIA dGPU. |
+| `laptop` | A laptop layout: two NVMe and two DIMM sensor chips, hp-wmi fans, a battery chip and an amdgpu chip (both skipped), a −273 °C sensor, an unreadable sensor, RAPL zones, a runtime-suspended NVIDIA dGPU. |
 | `vm` | `/proc/stat` and `/proc/cpuinfo` without cpufreq (frequency fallback). |
 | `rhel8` | `meminfo` without `MemAvailable`, no PSI, a battery using the charge/current interface. |
 | `intel-desktop` | coretemp and an nct6798 chip with a 65535 fan reading. |

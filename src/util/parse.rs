@@ -119,7 +119,7 @@ mod tests {
 
     #[test]
     fn slugs() {
-        assert_eq!(slug("Samsung SSD 990 PRO 2TB"), "samsung_ssd_990_pro_2tb");
+        assert_eq!(slug("Example SSD 2TB"), "example_ssd_2tb");
         assert_eq!(slug("/boot/efi"), "boot_efi");
         assert_eq!(slug("/"), "x");
         assert_eq!(dev_slug("0000:02:00.0"), "0000-02-00.0");

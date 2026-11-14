@@ -28,7 +28,7 @@ Each series descriptor has this shape:
 
 ```json
 {"key": "hwmon.nvme.0000-02-00.0.temp1", "collector": "sensors", "metric": "temp",
- "group": "nvme.0000-02-00.0", "group_label": "NVMe Samsung SSD 990 PRO 2TB",
+ "group": "nvme.0000-02-00.0", "group_label": "NVMe Example SSD 2TB",
  "label": "Composite", "unit": "C", "crit": 84.85, "max": 81.85}
 ```
 

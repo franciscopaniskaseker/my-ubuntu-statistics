@@ -297,7 +297,7 @@ mod tests {
         let roots = Roots::fixture("laptop");
         let d = Disk::new(roots);
         let i = d.identify("nvme1n1").unwrap();
-        assert_eq!(i.id, "samsung_ssd_990_pro_2tb_123456");
+        assert_eq!(i.id, "example_ssd_2tb_123456");
         assert!(d.identify("nvme1n1p1").is_none());
         assert!(d.identify("loop0").is_none());
     }

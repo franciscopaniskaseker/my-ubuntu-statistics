@@ -76,8 +76,11 @@ mod tests {
 
     #[test]
     fn finds_device() {
-        let db = "# comment\n1002  Advanced Micro Devices, Inc. [AMD/ATI]\n\t164e  Raphael\n\t\t1043 8877  Sub\n10de  NVIDIA Corporation\n\t2d18  Some GPU\n";
-        assert_eq!(find(db, 0x1002, 0x164e).as_deref(), Some("AMD Raphael"));
+        let db = "# comment\n1002  Advanced Micro Devices, Inc. [AMD/ATI]\n\t1234  Example iGPU\n\t\t1043 8877  Sub\n10de  NVIDIA Corporation\n\t2d18  Some GPU\n";
+        assert_eq!(
+            find(db, 0x1002, 0x1234).as_deref(),
+            Some("AMD Example iGPU")
+        );
         assert_eq!(find(db, 0x10de, 0x2d18).as_deref(), Some("NVIDIA Some GPU"));
         assert_eq!(find(db, 0x10de, 0x9999).as_deref(), Some("NVIDIA"));
         assert_eq!(find(db, 0x1234, 0x1).as_deref(), None);

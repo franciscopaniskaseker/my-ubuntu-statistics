@@ -450,7 +450,7 @@ mod tests {
             .iter()
             .find(|(d, _)| d.key == "hwmon.nvme.0000-02-00.0.temp1")
             .unwrap();
-        assert_eq!(nvme.0.group_label, "NVMe Samsung SSD 990 PRO 2TB");
+        assert_eq!(nvme.0.group_label, "NVMe Example SSD 2TB");
         assert_eq!(nvme.0.crit, Some(84.85));
     }
 }
